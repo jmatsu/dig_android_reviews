@@ -12,11 +12,19 @@ validate_arguments() {
 }
 
 mycommand::usage() {
-  echo "Hello world"
+  local desc_cmd=
+  while read desc_cmd; do
+    "$desc_cmd"
+  done < <(declare -F|grep "declare -f desc::"|sed "s/^declare -f //"|sort)
+}
+
+desc::usage() {
+  echo "  ./main.sh [usage|help|-h|--help]"
+  echo "    Show me. :)"
 }
 
 mycommand::concat() {
-  [[ -f "reviews" ]] || mkdir -p "reviews"
+  [[ -d "reviews" ]] || mkdir -p "reviews"
   local -r csv_files=$(find reviews -name "*.csv")
   set -- $csv_files
   if let "$# > 0"; then
@@ -26,13 +34,32 @@ mycommand::concat() {
   fi
 }
 
+desc::concat() {
+  echo "  ./main.sh [cc|concat]"
+  echo "    Concat the csv files in reviews directory."
+}
+
+mycommand::query() {
+  local -r query="$@"
+  q -H -d , "$(echo $query|sed "s/%%f/concat_result.csv/")" #replace placeholder
+}
+
+desc::query() {
+  echo "  ./main.sh [q|query] 'SELECT * FROM [%%f|file_name] where...'"
+  echo "    Query on the specified csv file. "
+  echo "    %%f will be replaced with concat_result.csv"
+}
+
 EXECUTION_COMMAND=
 
 case "${1:--h}" in
+  'query' | 'q' )
+    EXECUTION_COMMAND='query'
+    ;;
   'concat' | 'cc' )
     EXECUTION_COMMAND='concat'
     ;;
-  '-h' | '--help' )
+  '-h' | '--help' | 'usage' | 'help' )
     EXECUTION_COMMAND='usage'
     ;;
   -*) # unregistered options
@@ -45,4 +72,5 @@ esac
 
 shift 1
 
-eval "mycommand::${EXECUTION_COMMAND:-usage} $@"
+set -f # to disable glob expand
+mycommand::${EXECUTION_COMMAND:-usage} "$@"
